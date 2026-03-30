@@ -28,7 +28,8 @@ const Leaderboard = ({ contributors, owner, repo, summary }) => {
         throw new Error('Failed to download report');
       }
       
-      const blob = await response.blob();
+      const rawBlob = await response.blob();
+      const blob = new Blob([rawBlob], { type: 'application/pdf' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;

@@ -222,8 +222,11 @@ app.post('/api/report/generate', async (req, res) => {
     const page = await browser.newPage();
     await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
     
-    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+    const pdfUint8 = await page.pdf({ format: 'A4', printBackground: true });
     await browser.close();
+
+    // Convert Uint8Array to Node Buffer so Express sends raw binary, not JSON
+    const pdfBuffer = Buffer.from(pdfUint8);
 
     res.set({
       'Content-Type': 'application/pdf',
@@ -231,7 +234,7 @@ app.post('/api/report/generate', async (req, res) => {
       'Content-Length': pdfBuffer.length
     });
 
-    res.send(pdfBuffer);
+    res.end(pdfBuffer);
   } catch (err) {
     console.error('PDF Generation Error:', err);
     res.status(500).json({ message: 'Failed to generate PDF.' });
