@@ -16,8 +16,8 @@ function App() {
         <div className="navbar-links">
           <Link to="/">Home</Link>
           <Link to="/verify" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-            <ShieldCheck size={14} />
-            Verify
+            {/* <ShieldCheck size={14} /> */}
+            Verify Report
           </Link>
         </div>
       </nav>
