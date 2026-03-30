@@ -11,11 +11,10 @@ function App() {
       <nav className="navbar">
         <Link to="/" className="navbar-brand">
           <Github color="var(--primary-blue)" />
-          GitHub Analytics
+          GitHub Scrapper
         </Link>
         <div className="navbar-links">
           <Link to="/">Home</Link>
-          <Link to="/analyze">Dashboard</Link>
           <Link to="/verify" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
             <ShieldCheck size={14} />
             Verify
