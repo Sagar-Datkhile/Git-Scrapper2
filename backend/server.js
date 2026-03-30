@@ -3,6 +3,9 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
+import puppeteer from 'puppeteer';
+import crypto from 'crypto';
+import { generateReportHTML } from './reportTemplate.js';
 
 dotenv.config();
 
@@ -185,6 +188,53 @@ app.post('/api/analyze', async (req, res) => {
       return res.status(429).json({ message: 'GitHub API rate limit exceeded. Please configure a personal access token.' });
     }
     res.status(500).json({ message: 'Failed to analyze repository. ' + (error.message || '') });
+  }
+});
+
+// API Route: Generate PDF Report (Stateless POST)
+app.post('/api/report/generate', async (req, res) => {
+  const { owner, repo, contributor, totalCommits, totalContributors, rank } = req.body;
+
+  if (!owner || !repo || !contributor) {
+    return res.status(400).json({ message: 'Missing report data.' });
+  }
+
+  try {
+    const repoId = `${owner}/${repo}`;
+    const generatedAt = new Date().toISOString();
+    
+    // Using randomBytes for deep Node.js backwards compatibility
+    const certId = crypto.randomBytes(4).toString('hex').toUpperCase();
+    const certHashInput = `${contributor.login}-${repoId}-${contributor.score}-${generatedAt}`;
+    const certHash = crypto.createHash('sha256').update(certHashInput).digest('hex').substring(0, 16);
+
+    // Mock the specific slice of repoData needed by the report template to bypass Supabase caches entirely
+    const repoDataMock = {
+      owner, 
+      repo,
+      summary: { totalCommits, totalContributors }
+    };
+
+    const htmlContent = generateReportHTML(contributor, repoDataMock, rank, certId, certHash, generatedAt);
+
+    // Generate PDF using Puppeteer
+    const browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
+    await page.setContent(htmlContent, { waitUntil: 'networkidle0' });
+    
+    const pdfBuffer = await page.pdf({ format: 'A4', printBackground: true });
+    await browser.close();
+
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="contributor_report_${contributor.login}.pdf"`,
+      'Content-Length': pdfBuffer.length
+    });
+
+    res.send(pdfBuffer);
+  } catch (err) {
+    console.error('PDF Generation Error:', err);
+    res.status(500).json({ message: 'Failed to generate PDF.' });
   }
 });
 

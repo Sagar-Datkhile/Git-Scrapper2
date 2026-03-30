@@ -164,7 +164,7 @@ const Dashboard = () => {
           <ChartsSection contributors={data.contributors} commitsByDate={data.commitsByDate} />
         </div>
         <div>
-          <Leaderboard contributors={data.contributors} />
+          <Leaderboard contributors={data.contributors} owner={owner} repo={repo} summary={data.summary} />
         </div>
       </div>
     </div>

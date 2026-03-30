@@ -57,8 +57,8 @@ const ChartsSection = ({ contributors, commitsByDate }) => {
         <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--dark-blue)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           Commit Activity Over Time
         </h3>
-        <div style={{ height: '300px', width: '100%' }}>
-          <ResponsiveContainer width="100%" height="100%">
+        <div style={{ height: '300px', width: '100%', minWidth: 0, minHeight: 0 }}>
+          <ResponsiveContainer width="99%" height="100%">
             <AreaChart data={commitsByDate} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorCommits" x1="0" y1="0" x2="0" y2="1">
@@ -81,8 +81,8 @@ const ChartsSection = ({ contributors, commitsByDate }) => {
       <div className="grid md:grid-cols-2 gap-4">
         <div className="glass-panel animate-fade-in-up" style={{ padding: '2rem', animationDelay: '0.3s' }}>
           <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--dark-blue)' }}>Commits by User</h3>
-          <div style={{ height: '250px', width: '100%' }}>
-            <ResponsiveContainer width="100%" height="100%">
+          <div style={{ height: '250px', width: '100%', minWidth: 0, minHeight: 0 }}>
+            <ResponsiveContainer width="99%" height="100%">
               <BarChart data={barData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="var(--glass-border)" />
                 <XAxis type="number" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
