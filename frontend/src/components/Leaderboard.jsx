@@ -3,10 +3,12 @@ import { Trophy, Star, Award, Download, Loader2 } from 'lucide-react';
 
 const Leaderboard = ({ contributors, owner, repo, summary }) => {
   const [downloadingFor, setDownloadingFor] = useState(null);
+  const [lastCertId, setLastCertId] = useState(null);
 
   const handleDownloadReport = async (contributorObj, rank) => {
     try {
       setDownloadingFor(contributorObj.login);
+      setLastCertId(null);
       const url = `http://localhost:5000/api/report/generate`;
       
       const response = await fetch(url, {
@@ -27,17 +29,24 @@ const Leaderboard = ({ contributors, owner, repo, summary }) => {
       if (!response.ok) {
         throw new Error('Failed to download report');
       }
+
+      // Extract Certificate ID from response header
+      const certId = response.headers.get('X-Report-Id');
       
       const rawBlob = await response.blob();
       const blob = new Blob([rawBlob], { type: 'application/pdf' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `contributor_report_${contributorObj.login}.pdf`;
+      a.download = `contributor_report_${contributorObj.login}${certId ? '_' + certId : ''}.pdf`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(downloadUrl);
       document.body.removeChild(a);
+
+      if (certId) {
+        setLastCertId(certId);
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to generate report. Please try again.');
@@ -118,6 +127,46 @@ const Leaderboard = ({ contributors, owner, repo, summary }) => {
           </div>
         ))}
       </div>
+
+      {/* Certificate ID Toast Notification */}
+      {lastCertId && (
+        <div
+          className="animate-fade-in-up"
+          style={{
+            marginTop: '1rem',
+            background: 'rgba(16, 185, 129, 0.1)',
+            border: '1px solid rgba(16, 185, 129, 0.3)',
+            borderRadius: '10px',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px'
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 600 }}>✓ Report Downloaded</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: '8px' }}>
+              Certificate ID: <span style={{ fontFamily: 'monospace', color: 'var(--text-main)', fontWeight: 700, letterSpacing: '1px' }}>{lastCertId}</span>
+            </span>
+          </div>
+          <button
+            onClick={() => { navigator.clipboard.writeText(lastCertId); }}
+            style={{
+              background: 'rgba(16, 185, 129, 0.2)',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+              color: '#10b981',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontSize: '0.7rem',
+              fontWeight: 600
+            }}
+          >
+            Copy ID
+          </button>
+        </div>
+      )}
     </div>
   );
 };

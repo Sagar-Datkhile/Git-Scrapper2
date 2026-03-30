@@ -5,7 +5,12 @@ import axios from 'axios';
 import { createClient } from '@supabase/supabase-js';
 import puppeteer from 'puppeteer';
 import crypto from 'crypto';
+import multer from 'multer';
 import { generateReportHTML } from './reportTemplate.js';
+import { anchorHash } from './blockchain.js';
+
+// Multer config for PDF upload verification
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
 dotenv.config();
 
@@ -228,16 +233,145 @@ app.post('/api/report/generate', async (req, res) => {
     // Convert Uint8Array to Node Buffer so Express sends raw binary, not JSON
     const pdfBuffer = Buffer.from(pdfUint8);
 
+    // === VERIFICATION HASHING ===
+    // 1. Content hash: deterministic JSON of the report data
+    const contentPayload = JSON.stringify({
+      login: contributor.login,
+      repo: repoId,
+      commits: contributor.commits,
+      linesAdded: contributor.linesAdded,
+      linesDeleted: contributor.linesDeleted,
+      score: contributor.score,
+      rank,
+      generatedAt
+    });
+    const contentHash = crypto.createHash('sha256').update(contentPayload).digest('hex');
+
+    // 2. File hash: SHA-256 of the raw PDF bytes
+    const fileHash = crypto.createHash('sha256').update(pdfBuffer).digest('hex');
+
+    // 3. Optional blockchain anchoring
+    const blockchainTxn = await anchorHash(contentHash);
+
+    // 4. Store in Supabase
+    if (supabase) {
+      supabase
+        .from('report_verification')
+        .insert({
+          report_id: certId,
+          contributor_login: contributor.login,
+          repo: repoId,
+          content_hash: contentHash,
+          file_hash: fileHash,
+          blockchain_txn: blockchainTxn
+        })
+        .then(({ error }) => {
+          if (error) console.error('Failed to store verification record:', error.message);
+          else console.log(`Verification record stored for ${certId}`);
+        });
+    }
+
     res.set({
       'Content-Type': 'application/pdf',
-      'Content-Disposition': `attachment; filename="contributor_report_${contributor.login}.pdf"`,
-      'Content-Length': pdfBuffer.length
+      'Content-Disposition': `attachment; filename="contributor_report_${contributor.login}_${certId}.pdf"`,
+      'Content-Length': pdfBuffer.length,
+      'X-Report-Id': certId,
+      'Access-Control-Expose-Headers': 'X-Report-Id'
     });
 
     res.end(pdfBuffer);
   } catch (err) {
     console.error('PDF Generation Error:', err);
     res.status(500).json({ message: 'Failed to generate PDF.' });
+  }
+});
+
+// API Route: Verify report by Certificate ID
+app.post('/api/report/verify', async (req, res) => {
+  const { reportId } = req.body;
+  if (!reportId) {
+    return res.status(400).json({ message: 'Report ID is required.' });
+  }
+
+  try {
+    if (!supabase) {
+      return res.status(500).json({ message: 'Verification service unavailable.' });
+    }
+
+    const { data, error } = await supabase
+      .from('report_verification')
+      .select('*')
+      .eq('report_id', reportId.trim().toUpperCase())
+      .single();
+
+    if (error || !data) {
+      return res.json({
+        verified: false,
+        message: 'No report found with this Certificate ID. The report may be tampered or invalid.'
+      });
+    }
+
+    return res.json({
+      verified: true,
+      message: 'Report is authentic and verified.',
+      details: {
+        contributor: data.contributor_login,
+        repo: data.repo,
+        contentHash: data.content_hash,
+        fileHash: data.file_hash,
+        blockchainTxn: data.blockchain_txn,
+        createdAt: data.created_at
+      }
+    });
+  } catch (err) {
+    console.error('Verification error:', err);
+    res.status(500).json({ message: 'Verification failed.' });
+  }
+});
+
+// API Route: Verify report by PDF file upload
+app.post('/api/report/verify-file', upload.single('pdf'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'PDF file is required.' });
+  }
+
+  try {
+    if (!supabase) {
+      return res.status(500).json({ message: 'Verification service unavailable.' });
+    }
+
+    const uploadedHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+
+    const { data, error } = await supabase
+      .from('report_verification')
+      .select('*')
+      .eq('file_hash', uploadedHash)
+      .single();
+
+    if (error || !data) {
+      return res.json({
+        verified: false,
+        message: 'This PDF does not match any verified report. It may have been modified.',
+        uploadedHash
+      });
+    }
+
+    return res.json({
+      verified: true,
+      message: 'PDF is authentic and matches the original report.',
+      details: {
+        reportId: data.report_id,
+        contributor: data.contributor_login,
+        repo: data.repo,
+        contentHash: data.content_hash,
+        fileHash: data.file_hash,
+        blockchainTxn: data.blockchain_txn,
+        createdAt: data.created_at
+      }
+    });
+  } catch (err) {
+    console.error('File verification error:', err);
+    res.status(500).json({ message: 'Verification failed.' });
   }
 });
 
